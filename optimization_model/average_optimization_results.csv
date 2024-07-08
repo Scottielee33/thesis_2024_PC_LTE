@@ -1,0 +1,13 @@
+"Component","Quantile","Avg_OptimalUpgradeTime","Avg_OptimalExtendedPeriod"
+"CPU","First Quantile",2.709787703,8.225
+"CPU","Second Quantile",2.82738623625,7.65
+"CPU","Third Quantile",2.41224669475,7
+"Disk","First Quantile",2.1956865095,5.15
+"Disk","Second Quantile",1.81742663075,5.95
+"Disk","Third Quantile",2.000570717,7.25
+"GPU","First Quantile",2.1213159705,6.925
+"GPU","Second Quantile",2.16732608875,6.3
+"GPU","Third Quantile",2.0697311045,6.175
+"Memory","First Quantile",2.5,5.1
+"Memory","Second Quantile",2.12829747425,5.1
+"Memory","Third Quantile",2.5,5.1

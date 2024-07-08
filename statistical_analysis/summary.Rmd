@@ -1,0 +1,141 @@
+---
+title: "summary"
+output: pdf_document
+date: "2024-02-15"
+---
+
+```{r}
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("dplyr")) install.packages("dplyr")
+```
+
+
+```{r CPU}
+CPU <- read.csv("../final_data/CPU.csv")
+CPU$ReleaseDate <- as.Date(CPU$ReleaseDate, format = "%Y-%m-%d")
+CPU$CurrentDate <- as.Date(CPU$CurrentDate, format = "%Y-%m-%d")
+CPU$Score <- as.numeric(CPU$Score)
+CPU$X.1 <- NULL
+CPU$X <- NULL
+summary(CPU)
+```
+
+```{r GPU}
+GPU <- read.csv("../final_data/GPU.csv")
+GPU$ReleaseDate <- as.Date(GPU$ReleaseDate, format = "%Y-%m-%d")
+GPU$CurrentDate <- as.Date(GPU$CurrentDate, format = "%Y-%m-%d")
+GPU$G3DScore <- as.numeric(GPU$G3DScore)
+GPU$G2DScore <- as.numeric(GPU$G2DScore)
+GPU$X.1 <- NULL
+GPU$X <- NULL
+summary(GPU)
+```
+
+```{r Disk}
+Disk <- read.csv("../final_data/Disk.csv")
+Disk$ReleaseDate <- as.Date(Disk$ReleaseDate, format = "%Y-%m-%d")
+Disk$CurrentDate <- as.Date(Disk$CurrentDate, format = "%Y-%m-%d")
+Disk$Score <- as.numeric(Disk$Score)
+Disk$X.1 <- NULL
+Disk$X <- NULL
+summary(Disk)
+```
+
+```{r Memory}
+Memory <- read.csv("../final_data/Memory.csv")
+Memory$ReleaseDate <- as.Date(Memory$ReleaseDate, format = "%Y-%m-%d")
+Memory$CurrentDate <- as.Date(Memory$CurrentDate, format = "%Y-%m-%d")
+Memory$Score <- as.numeric(Memory$Score)
+Memory$X.1 <- NULL
+Memory$X <- NULL
+summary(Memory)
+```
+
+```{r MSRP}
+ggplot(CPU, aes(x=AdjustedReleasePrice)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="CPU MSRP Prices", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(GPU, aes(x=AdjustedReleasePrice)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="GPU MSRP Prices", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(Disk, aes(x=AdjustedReleasePrice)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="Disk MSRP Prices", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(Memory, aes(x=AdjustedReleasePrice)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="Memory MSRP Prices", x="Price", y="Frequency") +
+  theme_minimal()
+```
+
+```{r Score}
+ggplot(CPU, aes(x=Score)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="CPU Scores", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(GPU, aes(x=G2DScore)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="GPU 2D-Scores", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(GPU, aes(x=G3DScore)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="GPU 3D-Scores", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(Disk, aes(x=Score)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="Disk Scores", x="Price", y="Frequency") +
+  theme_minimal()
+
+ggplot(Memory, aes(x=Score)) + 
+  geom_histogram(bins=30, fill="lightblue", color="black") +
+  labs(title="Memory Scores", x="Price", y="Frequency") +
+  theme_minimal()
+```
+
+```{r}
+cpu_summary <- CPU %>% group_by(Quantile) %>% summarize(AvgPrice = mean(AdjustedReleasePrice))
+
+gpu_summary <- GPU %>% group_by(Quantile) %>% summarize(AvgPrice = mean(AdjustedReleasePrice))
+
+disk_summary <- Disk %>% group_by(Quantile) %>% summarize(AvgPrice = mean(AdjustedReleasePrice))
+
+memory_summary <- Memory %>% group_by(Quantile) %>% summarize(AvgPrice = mean(AdjustedReleasePrice))
+
+
+
+# Combining data
+
+combined_data <- rbind(data.frame(Component = 'CPU', Quantile = cpu_summary$Quantile, Price = cpu_summary$AvgPrice),
+
+                       data.frame(Component = 'GPU', Quantile = gpu_summary$Quantile, Price = gpu_summary$AvgPrice),
+
+                       data.frame(Component = 'Disk', Quantile = disk_summary$Quantile, Price = disk_summary$AvgPrice),
+
+                       data.frame(Component = 'Memory', Quantile = memory_summary$Quantile, Price = memory_summary$AvgPrice))
+
+
+
+# Creating the plot
+
+ggplot(combined_data, aes(x = Component, y = Price, fill = Quantile)) +
+
+  geom_bar(stat = "identity", position = position_dodge()) +
+
+  theme_minimal() +
+
+  labs(title = "Component Launch Prices per Quantile", x = "Component", y = "Price") +
+
+  scale_fill_brewer(palette = "Set1") +
+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
