@@ -90,8 +90,8 @@ lambdas <- read_lambdas("../statistical_analysis/lambda_values.csv")
 ```{r}
 PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, t, t_upgrade, perf_new, upgraded_components) {
   CPU_lambda <- get_lambda(lambdas, "CPU", quantile)
-  TwoD_lambda <- get_lambda(lambdas, "GPU", quantile)
-  ThreeD_lambda <- get_lambda(lambdas, "GPU", quantile)
+  TwoD_lambda <- get_lambda(lambdas, "GPU2D", quantile)
+  ThreeD_lambda <- get_lambda(lambdas, "GPU3D", quantile)
   Memory_lambda <- get_lambda(lambdas, "Memory", quantile)
   Disk_lambda <- get_lambda(lambdas, "Disk", quantile)
 
@@ -221,7 +221,7 @@ optimize_upgrade <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rati
     if (avg_perf < initial_avg_perf_no_upgrade) {
       break
     }
-    optimal_extended_period <- optimal_extended_period + 0.2
+    optimal_extended_period <- optimal_extended_period + 0.1
   }
   
   return(list(optimal_t_upgrade = optimal_t_upgrade, optimal_extended_period = optimal_extended_period))
@@ -243,13 +243,42 @@ get_performance_and_upgrades <- function(averages_data, start_year, start_quanti
   
   return(list(start_perf = start_perf, upgrade_values = upgrade_values))
 }
+
+
+get_performance_and_upgrades_gpu <- function(averages_data, start_year, start_quantile) {
+  start_perf_2d <- averages_data %>%
+    filter(ReleaseYear == start_year & Quantile == start_quantile) %>%
+    pull(Avg_G2DScore)
+  
+  start_perf_3d <- averages_data %>%
+    filter(ReleaseYear == start_year & Quantile == start_quantile) %>%
+    pull(Avg_G3DScore)
+  
+  upgrade_values_2d <- averages_data %>%
+    filter(ReleaseYear >= start_year & Quantile == start_quantile) %>%
+    pull(Avg_G2DScore)
+  
+  upgrade_values_3d <- averages_data %>%
+    filter(ReleaseYear >= start_year & Quantile == start_quantile) %>%
+    pull(Avg_G3DScore)
+  
+  upgrade_values_2d <- upgrade_values_2d[1:5]  # Get the 5 values after the first value
+  upgrade_values_3d <- upgrade_values_3d[1:5]  # Get the 5 values after the first value
+  
+  return(list(
+    start_perf_2d = start_perf_2d,
+    start_perf_3d = start_perf_3d,
+    upgrade_values_2d = upgrade_values_2d,
+    upgrade_values_3d = upgrade_values_3d
+  ))
+}
 ```
 
 ```{r}
 run_optimization <- function(start_year, start_quantile, chosen_components) {
   # Get starting performance and upgrade values for each component
   cpu_perf <- get_performance_and_upgrades(cpu_averages, start_year, start_quantile)
-  gpu_perf <- get_performance_and_upgrades(gpu_averages, start_year, start_quantile)
+  gpu_perf <- get_performance_and_upgrades_gpu(gpu_averages, start_year, start_quantile)
   disk_perf <- get_performance_and_upgrades(disk_averages, start_year, start_quantile)
   memory_perf <- get_performance_and_upgrades(memory_averages, start_year, start_quantile)
   
@@ -261,7 +290,8 @@ run_optimization <- function(start_year, start_quantile, chosen_components) {
     perf_new_values_list$CPU <- cpu_perf$upgrade_values
   } 
   if ("GPU" %in% chosen_components) {
-    perf_new_values_list$GPU <- gpu_perf$upgrade_values
+    perf_new_values_list$GPU_2D <- gpu_perf$upgrade_values_2d
+    perf_new_values_list$GPU_3D <- gpu_perf$upgrade_values_3d
   }
   if ("Disk" %in% chosen_components) {
     perf_new_values_list$Disk <- disk_perf$upgrade_values
@@ -273,7 +303,6 @@ run_optimization <- function(start_year, start_quantile, chosen_components) {
   print(perf_new_values_list)
   str(perf_new_values_list)  # Debugging: Check structure
 
-  GPU_start_scores <- strsplit(as.character(gpu_perf$start_perf), ",")
   CPU_factor <- 0.396566187
   TwoD_factor <- 3.178718116
   ThreeD_factor <- 2.525195879
@@ -282,8 +311,8 @@ run_optimization <- function(start_year, start_quantile, chosen_components) {
   
   # Calculate the total starting performance
   total_starting_performance <- 1 / ((1 / (cpu_perf$start_perf * CPU_factor) + 
-                    1 / (as.numeric(GPU_start_scores[[1]][1]) * TwoD_factor) + 
-                    1 / (as.numeric(GPU_start_scores[[1]][2]) * ThreeD_factor) + 
+                    1 / (gpu_perf$start_perf_2d * TwoD_factor) + 
+                    1 / (gpu_perf$start_perf_3d * ThreeD_factor) + 
                     1 / (memory_perf$start_perf * Memory_factor) + 
                     1 / (disk_perf$start_perf * Disk_factor)) / 5)
 
@@ -291,19 +320,61 @@ run_optimization <- function(start_year, start_quantile, chosen_components) {
   
   cat("Total starting performance:", total_starting_performance, "\n")
   
-  result <- optimize_upgrade(cpu_perf$start_perf, as.numeric(GPU_start_scores[[1]][1]), as.numeric(GPU_start_scores[[1]][2]), memory_perf$start_perf, disk_perf$start_perf, lambdas, start_quantile, initial_period, perf_new_values_list, chosen_components)
+  result <- optimize_upgrade(cpu_perf$start_perf, gpu_perf$start_perf_2d, gpu_perf$start_perf_3d, memory_perf$start_perf, disk_perf$start_perf, lambdas, start_quantile, initial_period, perf_new_values_list, chosen_components)
   
   optimal_t_upgrade <- result$optimal_t_upgrade
   optimal_extended_period <- result$optimal_extended_period
   
   cat("Optimal upgrade time:", format(optimal_t_upgrade, digits = 10), "years\n")
   cat("Optimal extended period:", format(optimal_extended_period, digits = 10), "years\n")
+  return(list(
+    start_year = start_year,
+    start_quantile = start_quantile,
+    chosen_components = chosen_components,
+    optimal_t_upgrade = optimal_t_upgrade,
+    optimal_extended_period = optimal_extended_period
+  ))
 }
 ```
 
 ```{r}
-run_optimization(2014, "First Quantile", c("GPU", "CPU"))
-run_optimization(2015, "First Quantile", c("Disk", "CPU"))
-run_optimization(2016, "First Quantile", c("Disk", "CPU"))
-run_optimization(2017, "First Quantile", c("Disk", "CPU"))
+# Initialize an empty data frame to store the results
+all_results_df <- data.frame(
+  start_year = integer(),
+  start_quantile = character(),
+  chosen_components = I(list()),
+  optimal_t_upgrade = numeric(),
+  optimal_extended_period = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Define the vectors
+years <- 2014:2017
+quantiles <- c("First Quantile", "Second Quantile", "Third Quantile")
+components <- c("CPU", "GPU", "Disk", "Memory")
+
+# Loop over each year, quantile, and combination of two components
+for (year in years) {
+  for (quantile in quantiles) {
+    for (i in 1:(length(components) - 1)) {
+      for (j in (i + 1):length(components)) {
+        component_pair <- c(components[i], components[j])
+        result <- run_optimization(year, quantile, component_pair)
+        
+        # Append the result to the data frame
+        all_results_df <- rbind(all_results_df, data.frame(
+          start_year = result$start_year,
+          start_quantile = result$start_quantile,
+          chosen_components = I(list(result$chosen_components)),
+          optimal_t_upgrade = result$optimal_t_upgrade,
+          optimal_extended_period = result$optimal_extended_period,
+          stringsAsFactors = FALSE
+        ))
+      }
+    }
+  }
+}
+
+# Print the results data frame
+print(all_results_df)
 ```

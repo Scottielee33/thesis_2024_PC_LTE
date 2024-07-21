@@ -124,8 +124,8 @@ lambdas <- read_lambdas("../statistical_analysis/lambda_values.csv")
 ```{r}
 PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, t, t_upgrade, perf_new, upgraded_component) {
   CPU_lambda <- get_lambda(lambdas, "CPU", quantile)
-  TwoD_lambda <- get_lambda(lambdas, "GPU", quantile)
-  ThreeD_lambda <- get_lambda(lambdas, "GPU", quantile)
+  TwoD_lambda <- get_lambda(lambdas, "GPU2D", quantile)
+  ThreeD_lambda <- get_lambda(lambdas, "GPU3D", quantile)
   Memory_lambda <- get_lambda(lambdas, "Memory", quantile)
   Disk_lambda <- get_lambda(lambdas, "Disk", quantile)
 
@@ -438,5 +438,70 @@ write.csv(average_results, "average_optimization_results.csv", row.names = FALSE
 ```
 
 ```{r}
-result <- run_optimization(2014, "First Quantile", "GPU")
+optimization_results <- read.csv(file = "optimization_results.csv")
+average_results <- read.csv(file = "average_optimization_results.csv")
+
+find_matching_row <- function(year, quantile, df) {
+  matching_row <- df[df$ReleaseYear == year & df$Quantile == quantile, ]
+  if (nrow(matching_row) > 0) {
+    return(matching_row)
+  } else {
+    return(NULL)
+  }
+}
+
+# Add new columns to optimization_results to store the average prices
+optimization_results$AverageInitialPrice <- NA
+optimization_results$AverageUpgradePrice <- NA
+
+for (i in 1:nrow(optimization_results)) {
+  year <- optimization_results$Year[i]
+  quantile <- optimization_results$Quantile[i]
+  optimal_upgrade_time <- optimization_results$OptimalUpgradeTime[i]
+  component <- optimization_results$Component[i]
+  optimal_extended_time <- optimization_results$OptimalExtendedPeriod[i]
+  
+  upgrade_time <- floor(year + optimal_upgrade_time)
+  
+  cpu_matching <- find_matching_row(year, quantile, cpu_averages)
+  gpu_matching <- find_matching_row(year, quantile, gpu_averages)
+  disk_matching <- find_matching_row(year, quantile, disk_averages)
+  memory_matching <- find_matching_row(year, quantile, memory_averages)
+  
+  if (!is.null(cpu_matching) && !is.null(gpu_matching) && !is.null(disk_matching) && !is.null(memory_matching)) {
+    initial_price <- cpu_matching$Avg_Release_Price + gpu_matching$Avg_Release_Price + disk_matching$Avg_Release_Price + memory_matching$Avg_Release_Price
+    optimization_results$AverageInitialPrice[i] <- initial_price / 5
+    
+    if (component == "CPU") {
+      upgrade_matching <- find_matching_row(upgrade_time, quantile, cpu_averages)
+    } else if (component == "GPU") {
+      upgrade_matching <- find_matching_row(upgrade_time, quantile, gpu_averages)
+    } else if (component == "Disk") {
+      upgrade_matching <- find_matching_row(upgrade_time, quantile, disk_averages)
+    } else if (component == "Memory") {
+      upgrade_matching <- find_matching_row(upgrade_time, quantile, memory_averages)
+    }
+    
+    if (!is.null(upgrade_matching)) {
+      upgrade_price <- upgrade_matching$Avg_Release_Price + cpu_matching$Avg_Release_Price + gpu_matching$Avg_Release_Price + disk_matching$Avg_Release_Price + memory_matching$Avg_Release_Price
+      
+      total_duration <- optimal_extended_time
+      
+      optimization_results$AverageUpgradePrice[i] <- upgrade_price / total_duration
+    }
+  }
+}
+
+optimization_results <- na.omit(optimization_results)
+
+average_results <- optimization_results %>%
+  group_by(Component, Quantile) %>%
+  summarise(
+    Avg_OptimalUpgradeTime = mean(OptimalUpgradeTime),
+    Avg_OptimalExtendedPeriod = mean(OptimalExtendedPeriod),
+    Avg_InitialPrice = mean(AverageInitialPrice),
+    Avg_UpgradePrice = mean(AverageUpgradePrice)
+  )
+
+write.csv(average_results, "average_optimization_results.csv", row.names = FALSE)
 ```

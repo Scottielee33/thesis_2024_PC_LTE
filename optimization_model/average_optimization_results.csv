@@ -1,13 +1,13 @@
-"Component","Quantile","Avg_OptimalUpgradeTime","Avg_OptimalExtendedPeriod"
-"CPU","First Quantile",2.709787703,8.225
-"CPU","Second Quantile",2.82738623625,7.65
-"CPU","Third Quantile",2.41224669475,7
-"Disk","First Quantile",2.1956865095,5.15
-"Disk","Second Quantile",1.81742663075,5.95
-"Disk","Third Quantile",2.000570717,7.25
-"GPU","First Quantile",2.1213159705,6.925
-"GPU","Second Quantile",2.16732608875,6.3
-"GPU","Third Quantile",2.0697311045,6.175
-"Memory","First Quantile",2.5,5.1
-"Memory","Second Quantile",2.12829747425,5.1
-"Memory","Third Quantile",2.5,5.1
+"Component","Quantile","Avg_OptimalUpgradeTime","Avg_OptimalExtendedPeriod","Avg_InitialPrice","Avg_UpgradePrice"
+"CPU","First Quantile",2.709787703,8.225,46.8244710898285,37.8289880135176
+"CPU","Second Quantile",2.82738623625,7.65,120.372688204478,100.24982341872
+"CPU","Third Quantile",2.41224669475,7,365.190313648195,334.799873303584
+"Disk","First Quantile",2.1956865095,5.15,46.8244710898285,50.6977021192421
+"Disk","Second Quantile",1.81742663075,5.95,120.372688204478,112.296462070845
+"Disk","Third Quantile",2.000570717,7.25,365.190313648195,277.708379269066
+"GPU","First Quantile",2.1213159705,6.925,46.8244710898285,51.7311067660954
+"GPU","Second Quantile",2.16732608875,6.3,120.372688204478,136.423705240174
+"GPU","Third Quantile",2.0697311045,6.175,365.190313648195,457.508435770105
+"Memory","First Quantile",2.5,5.1,48.6514077449887,57.9563634785292
+"Memory","Second Quantile",2.12829747425,5.1,120.372688204478,141.696097833269
+"Memory","Third Quantile",2.5,5.1,351.22670292605,410.09854931986

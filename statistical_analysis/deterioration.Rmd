@@ -22,7 +22,7 @@ data$Score <- data$G2DScore + data$G3DScore
 # Aggregate data by year and quantile
 agg_data_quantile <- data %>%
   group_by(ReleaseYear, Quantile) %>%
-  summarise(Avg_Score = mean(Score, na.rm = TRUE)) %>%
+  summarise(Avg_Score = mean(G2DScore, na.rm = TRUE)) %>%
   ungroup()
 
 # Define the exponential decay function
@@ -56,10 +56,10 @@ lambda_values <- t(lambda_values)
 colnames(lambda_values) <- c("Lambda", "P_Value")
 lambda_values <- as.data.frame(lambda_values)
 lambda_values$Quantile <- rownames(lambda_values)
-gpu_lambda_values <- lambda_values
+gpu2d_lambda_values <- lambda_values
 
 # Print lambda values and p-values
-print(gpu_lambda_values)
+print(gpu2d_lambda_values)
 
 # Create a combined plot
 combined_plot <- ggplot()
@@ -67,7 +67,7 @@ combined_plot <- ggplot()
 # Add data and fits for each quantile
 for (quantile in quantiles) {
   quantile_data <- filter(agg_data_quantile, Quantile == quantile)
-  lambda <- gpu_lambda_values[gpu_lambda_values$Quantile == quantile, "Lambda"]
+  lambda <- gpu2d_lambda_values[gpu2d_lambda_values$Quantile == quantile, "Lambda"]
   t <- quantile_data$ReleaseYear - min(quantile_data$ReleaseYear)
   fit_values <- exp_decay(t, max(quantile_data$Avg_Score), lambda)
   
@@ -80,14 +80,87 @@ for (quantile in quantiles) {
 
 # Customize the combined plot
 combined_plot <- combined_plot +
-  ggtitle("GPU: Exponential Decay Fit for Different Quantiles") +
+  ggtitle("GPU 2D: Exponential Decay Fit for Different Quantiles") +
   xlab("Year") +
   ylab("Average Performance Score") +
   scale_color_discrete(name = "Quantile")
 
 # Print the combined plot
 print(combined_plot)
+```
 
+```{r}
+data$ReleaseYear <- as.numeric(format(as.Date(data$ReleaseDate, format = "%Y-%m-%d"), "%Y"))
+data$Score <- data$G2DScore + data$G3DScore
+
+# Aggregate data by year and quantile
+agg_data_quantile <- data %>%
+  group_by(ReleaseYear, Quantile) %>%
+  summarise(Avg_Score = mean(G3DScore, na.rm = TRUE)) %>%
+  ungroup()
+
+# Define the exponential decay function
+exp_decay <- function(t, P0, lambda) {
+  P0 * exp(-lambda * t)
+}
+
+# Function to calculate lambda and p-value for each quantile
+calculate_lambda_for_quantile <- function(quantile_data) {
+  t <- quantile_data$ReleaseYear - min(quantile_data$ReleaseYear)
+  performance <- quantile_data$Avg_Score
+  
+  # Fit the model using non-linear least squares
+  start_params <- list(P0 = max(performance), lambda = 0.1)
+  fit <- nlsLM(performance ~ P0 * exp(-lambda * t), start = start_params, data = data.frame(t, performance))
+  summary_fit <- summary(fit)
+  lambda <- coef(fit)["lambda"]
+  p_value <- summary_fit$coefficients[2, "Pr(>|t|)"]
+  
+  return(c(lambda, p_value))
+}
+
+# Calculate lambda and p-values for each quantile
+quantiles <- unique(agg_data_quantile$Quantile)
+lambda_values <- sapply(quantiles, function(quantile) {
+  quantile_data <- filter(agg_data_quantile, Quantile == quantile)
+  calculate_lambda_for_quantile(quantile_data)
+})
+
+lambda_values <- t(lambda_values)
+colnames(lambda_values) <- c("Lambda", "P_Value")
+lambda_values <- as.data.frame(lambda_values)
+lambda_values$Quantile <- rownames(lambda_values)
+gpu3d_lambda_values <- lambda_values
+
+# Print lambda values and p-values
+print(gpu3d_lambda_values)
+
+# Create a combined plot
+combined_plot <- ggplot()
+
+# Add data and fits for each quantile
+for (quantile in quantiles) {
+  quantile_data <- filter(agg_data_quantile, Quantile == quantile)
+  lambda <- gpu3d_lambda_values[gpu3d_lambda_values$Quantile == quantile, "Lambda"]
+  t <- quantile_data$ReleaseYear - min(quantile_data$ReleaseYear)
+  fit_values <- exp_decay(t, max(quantile_data$Avg_Score), lambda)
+  
+  # Add fit values to quantile_data
+  quantile_data$Fit_Values <- fit_values
+  
+  combined_plot <- combined_plot +
+    geom_line(data = quantile_data, aes(x = ReleaseYear, y = Fit_Values, color = as.factor(Quantile)))
+}
+
+# Customize the combined plot
+combined_plot <- combined_plot +
+  ggtitle("GPU 3D: Exponential Decay Fit for Different Quantiles") +
+  xlab("Year") +
+  ylab("Average Performance Score") +
+  scale_color_discrete(name = "Quantile")
+
+# Print the combined plot
+print(combined_plot)
 ```
 
 ```{r}
@@ -329,11 +402,12 @@ print(combined_plot)
 
 ```{r}
 cpu_lambda_values$Component <- "CPU"
-gpu_lambda_values$Component <- "GPU"
+gpu2d_lambda_values$Component <- "GPU2D"
+gpu3d_lambda_values$Component <- "GPU3D"
 disk_lambda_values$Component <- "Disk"
 memory_lambda_values$Component <- "Memory"
 
-lambda_values <- rbind(cpu_lambda_values, gpu_lambda_values, disk_lambda_values, memory_lambda_values)
+lambda_values <- rbind(cpu_lambda_values, gpu2d_lambda_values, gpu3d_lambda_values, disk_lambda_values, memory_lambda_values)
 rownames(lambda_values) <- NULL
 
 write.csv(lambda_values, file = "lambda_values.csv", row.names = FALSE)
