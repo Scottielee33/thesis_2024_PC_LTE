@@ -377,4 +377,5 @@ for (year in years) {
 
 # Print the results data frame
 print(all_results_df)
+write.csv(all_results_df, file="two_optimization_results.csv", row.names = FALSE)
 ```
