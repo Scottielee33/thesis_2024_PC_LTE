@@ -10,6 +10,7 @@ if (!require("nloptr")) install.packages("nloptr")
 if (!require("data.table")) install.packages("data.table")
 if (!require("dplyr")) install.packages("dplyr")
 if (!require("lubridate")) install.packages("lubridate")
+if (!require("tidyr")) install.packages("tidyr")
 ```
 
 ```{r}
@@ -358,7 +359,7 @@ for (year in years) {
   for (quantile in quantiles) {
     for (i in 1:(length(components) - 1)) {
       for (j in (i + 1):length(components)) {
-        component_pair <- c(components[i], components[j])
+        component_pair <- c(components[i], components[j])oh 
         result <- run_optimization(year, quantile, component_pair)
         
         # Append the result to the data frame
@@ -378,4 +379,100 @@ for (year in years) {
 # Print the results data frame
 print(all_results_df)
 write.csv(all_results_df, file="two_optimization_results.csv", row.names = FALSE)
+```
+
+```{r}
+optimization_results <- two_optimization_results
+
+# Function to parse chosen_components column
+parse_components <- function(comp_string) {
+  # Remove the surrounding "c(" and ")"
+  comp_string <- gsub("c\\(|\\)", "", comp_string)
+  # Split the string by ", " and return as a vector
+  return(unlist(strsplit(comp_string, ", ")))
+}
+
+# Apply the function to the chosen_components column
+optimization_results$chosen_components <- lapply(optimization_results$chosen_components, parse_components)
+
+# Initialize new columns
+optimization_results$AverageInitialPrice <- NA
+optimization_results$AverageUpgradePrice <- NA
+
+# Function to find the matching row
+find_matching_row <- function(year, quantile, df) {
+  matching_row <- df[df$ReleaseYear == year & df$Quantile == quantile, ]
+  if (nrow(matching_row) > 0) {
+    return(matching_row)
+  } else {
+    return(NULL)
+  }
+}
+
+# Main loop
+for (i in 1:nrow(optimization_results)) {
+  year <- optimization_results$start_year[i]
+  quantile <- optimization_results$start_quantile[i]
+  optimal_upgrade_time <- optimization_results$optimal_t_upgrade[i]
+  components <- optimization_results$chosen_components[[i]]
+  optimal_extended_time <- optimization_results$optimal_extended_period[i]
+  
+  upgrade_time <- floor(year + optimal_upgrade_time)
+  
+  # Find initial matching rows
+  cpu_matching <- find_matching_row(year, quantile, cpu_averages)
+  gpu_matching <- find_matching_row(year, quantile, gpu_averages)
+  disk_matching <- find_matching_row(year, quantile, disk_averages)
+  memory_matching <- find_matching_row(year, quantile, memory_averages)
+  
+  if (!is.null(cpu_matching) && !is.null(gpu_matching) && !is.null(disk_matching) && !is.null(memory_matching)) {
+    initial_price <- sum(cpu_matching$Avg_Release_Price, gpu_matching$Avg_Release_Price, disk_matching$Avg_Release_Price, memory_matching$Avg_Release_Price)
+    optimization_results$AverageInitialPrice[i] <- initial_price / 5
+    
+    upgrade_price <- initial_price
+    
+    for (component in components) {
+      upgrade_matching <- NULL
+      if (component == "CPU") {
+        upgrade_matching <- find_matching_row(upgrade_time, quantile, cpu_averages)
+      } else if (component == "GPU") {
+        upgrade_matching <- find_matching_row(upgrade_time, quantile, gpu_averages)
+      } else if (component == "Disk") {
+        upgrade_matching <- find_matching_row(upgrade_time, quantile, disk_averages)
+      } else if (component == "Memory") {
+        upgrade_matching <- find_matching_row(upgrade_time, quantile, memory_averages)
+      }
+      
+      if (!is.null(upgrade_matching)) {
+        upgrade_price <- upgrade_price + upgrade_matching$Avg_Release_Price
+      }
+      
+      upgrade_matching <- NULL
+    }
+    
+    total_duration <- optimal_extended_time
+    
+    optimization_results$AverageUpgradePrice[i] <- upgrade_price / total_duration
+  }
+}
+
+# Remove rows with NA values
+optimization_results <- na.omit(optimization_results)
+
+# Summarize the results
+average_results <- optimization_results %>%
+  unnest(chosen_components) %>%
+  group_by(chosen_components, start_quantile) %>%
+  summarise(
+    Avg_OptimalUpgradeTime = mean(optimal_t_upgrade),
+    Avg_OptimalExtendedPeriod = mean(optimal_extended_period),
+    Avg_InitialPrice = mean(AverageInitialPrice, na.rm = TRUE),
+    Avg_UpgradePrice = mean(AverageUpgradePrice, na.rm = TRUE)
+  )
+
+# Write to CSV
+write.csv(average_results, "two_average_optimization_results.csv", row.names = FALSE)
+
+# Print results
+print(average_results)
 ```

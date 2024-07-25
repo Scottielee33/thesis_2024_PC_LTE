@@ -1,0 +1,153 @@
+---
+title: "initial optimization"
+output: pdf_document
+date: "2024-02-15"
+---
+
+```{r}
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("nloptr")) install.packages("nloptr")
+if (!require("data.table")) install.packages("data.table")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("lubridate")) install.packages("lubridate")
+```
+
+```{r}
+# Load data
+cpu_data <- fread('../final_data/CPU.csv')
+gpu_data <- fread('../final_data/GPU.csv')
+disk_data <- fread('../final_data/Disk.csv')
+memory_data <- fread('../final_data/Memory.csv')
+                 
+# Add ReleaseYear column
+cpu_data$ReleaseYear <- year(ymd(cpu_data$ReleaseDate))
+gpu_data$ReleaseYear <- year(ymd(gpu_data$ReleaseDate))
+disk_data$ReleaseYear <- year(ymd(disk_data$ReleaseDate))
+memory_data$ReleaseYear <- year(ymd(memory_data$ReleaseDate))
+```
+
+```{r}
+# Calculate averages for each quantile and release year
+calculate_averages <- function(data) {
+  data %>%
+    group_by(Quantile, ReleaseYear) %>%
+    summarise(
+      Avg_Release_Price = mean(AdjustedReleasePrice, na.rm = TRUE),
+      Avg_Score = mean(Score, na.rm = TRUE)
+    ) %>%
+    ungroup()
+}
+
+gpu_calculate_averages <- function(data) {
+  data %>% 
+    group_by(Quantile, ReleaseYear) %>%
+    summarise(
+      Avg_Release_Price = mean(AdjustedReleasePrice, na.rm = TRUE),
+      Avg_G2DScore = mean(G2DScore, na.rm = TRUE),
+      Avg_G3DScore = mean(G3DScore, na.rm = TRUE)
+    ) %>%
+    ungroup()
+}
+
+cpu_averages <- calculate_averages(cpu_data)
+gpu_averages <- gpu_calculate_averages(gpu_data)
+disk_averages <- calculate_averages(disk_data)
+memory_averages <- calculate_averages(memory_data)
+gpu_averages$Avg_Score <- paste0(gpu_averages$Avg_G2DScore, ",", gpu_averages$Avg_G3DScore)
+```
+
+```{r}
+performance_after_upgrade <- function(t, t_upgrade, perf_initial, lambda, perf_new) {
+  if (t < t_upgrade) {
+    perf <- perf_initial * exp(-lambda * t)
+  } else {
+    perf <- perf_new * exp(-lambda * (t - t_upgrade))
+  }
+  return(perf)
+}
+```
+
+```{r}
+performance_after_upgrade(8, 6, 1000, 0.2, 1100)
+```
+
+```{r}
+# Function to read the lambda values from the dataset
+read_lambdas <- function(file_path) {
+  lambdas <- read.csv(file_path)
+  names(lambdas) <- c("Lambda", "P-value", "Quantile", "Component")
+  lambdas$Lambda <- abs(lambdas$Lambda)  # Make all Lambda values positive
+  return(lambdas)
+}
+
+get_lambda <- function(df, component, quantile) {
+  lambda_value <- df %>% 
+    filter(Component == component, Quantile == quantile) %>% 
+    select(Lambda) %>% 
+    pull()
+  return(lambda_value)
+}
+
+lambdas <- read_lambdas("../statistical_analysis/lambda_values.csv")
+```
+
+```{r}
+PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, t, t_upgrade, perf_new, upgraded_component) {
+  CPU_lambda <- get_lambda(lambdas, "CPU", quantile)
+  TwoD_lambda <- get_lambda(lambdas, "GPU2D", quantile)
+  ThreeD_lambda <- get_lambda(lambdas, "GPU3D", quantile)
+  Memory_lambda <- get_lambda(lambdas, "Memory", quantile)
+  Disk_lambda <- get_lambda(lambdas, "Disk", quantile)
+
+  if (upgraded_component == "CPU") {
+    CPU_Rating <- performance_after_upgrade(t, t_upgrade, CPU_Rating, CPU_lambda, perf_new)
+  } else {
+    CPU_Rating <- CPU_Rating * exp(-CPU_lambda * t)
+  }
+
+  if (upgraded_component == "GPU") {
+    gpu_perf_new <- strsplit(as.character(perf_new), split = ",")[[1]]
+    TwoD_perf_new <- as.numeric(gpu_perf_new[1])
+    ThreeD_perf_new <- as.numeric(gpu_perf_new[2])
+    TwoD_Rating <- performance_after_upgrade(t, t_upgrade, TwoD_Rating, TwoD_lambda, TwoD_perf_new)
+    ThreeD_Rating <- performance_after_upgrade(t, t_upgrade, ThreeD_Rating, ThreeD_lambda, ThreeD_perf_new)
+  } else {
+    TwoD_Rating <- TwoD_Rating * exp(-TwoD_lambda * t)
+    ThreeD_Rating <- ThreeD_Rating * exp(-ThreeD_lambda * t)
+  }
+
+  if (upgraded_component == "Memory") {
+    Memory_Rating <- performance_after_upgrade(t, t_upgrade, Memory_Rating, Memory_lambda, perf_new)
+  } else {
+    Memory_Rating <- Memory_Rating * exp(-Memory_lambda * t)
+  }
+
+  if (upgraded_component == "Disk") {
+    Disk_Rating <- performance_after_upgrade(t, t_upgrade, Disk_Rating, Disk_lambda, perf_new)
+  } else {
+    Disk_Rating <- Disk_Rating * exp(-Disk_lambda * t)
+  }
+
+  CPU_factor <- 0.396566187
+  TwoD_factor <- 3.178718116
+  ThreeD_factor <- 2.525195879
+  Memory_factor <- 1.757085479
+  Disk_factor <- 1.668158805
+
+  rating <- 1 / ((1 / (CPU_Rating * CPU_factor) + 
+                  1 / (TwoD_Rating * TwoD_factor) + 
+                  1 / (ThreeD_Rating * ThreeD_factor) + 
+                  1 / (Memory_Rating * Memory_factor) + 
+                  1 / (Disk_Rating * Disk_factor)) / 5)
+  
+  return(rating)
+}
+```
+
+```{r}
+PassMark_Rating_with_time_based_lambdas(1000, 1000, 1000, 1000, 1000, lambdas, "Third Quantile", 3, 3, "1900,1500", "GPU")
+```
+
+```{r}
+optimization_results <- read.csv(file = "optimization_results.csv")
+```

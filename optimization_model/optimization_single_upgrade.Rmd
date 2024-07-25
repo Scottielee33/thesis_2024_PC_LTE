@@ -39,36 +39,6 @@ calculate_averages <- function(data) {
 }
 
 gpu_calculate_averages <- function(data) {
-  data %>% 
-    group_by(Quantile, ReleaseYear) %>%
-    summarise(
-      Avg_Release_Price = mean(AdjustedReleasePrice, na.rm = TRUE),
-      Avg_G2DScore = mean(G2DScore, na.rm = TRUE),
-      Avg_G3DScore = mean(G3DScore, na.rm = TRUE)
-    ) %>%
-    ungroup()
-}
-
-cpu_averages <- calculate_averages(cpu_data)
-gpu_averages <- gpu_calculate_averages(gpu_data)
-disk_averages <- calculate_averages(disk_data)
-memory_averages <- calculate_averages(memory_data)
-gpu_averages$Avg_Score <- paste0(gpu_averages$Avg_G2DScore, ",", gpu_averages$Avg_G3DScore)
-```
-
-```{r}
-# Calculate averages for each quantile and release year
-calculate_averages <- function(data) {
-  data %>%
-    group_by(Quantile, ReleaseYear) %>%
-    summarise(
-      Avg_Release_Price = mean(AdjustedReleasePrice, na.rm = TRUE),
-      Avg_Score = mean(Score, na.rm = TRUE)
-    ) %>%
-    ungroup()
-}
-
-gpu_calculate_averages <- function(data) {
   data %>%
     group_by(Quantile, ReleaseYear) %>%
     summarise(
