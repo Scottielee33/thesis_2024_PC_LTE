@@ -207,7 +207,7 @@ get_performance_and_upgrades_gpu <- function(averages_data, start_year, start_qu
 ```
 
 ```{r}
-run_optimization <- function(start_year, start_quantile, chosen_components) {
+run_optimization <- function(start_year, start_quantile, chosen_components, broken_time) {
   # Get starting performance and upgrade values for each component
   cpu_perf <- get_performance_and_upgrades(cpu_averages, start_year, start_quantile)
   gpu_perf <- get_performance_and_upgrades_gpu(gpu_averages, start_year, start_quantile)
@@ -232,11 +232,80 @@ run_optimization <- function(start_year, start_quantile, chosen_components) {
     perf_new_values_list$Memory <- memory_perf$upgrade_values
   }
   
-  initial_average_performance <- average_performance(cpu_perf$start_perf, gpu_perf$start_perf_2d, gpu_perf$start_perf_3d, disk_perf$start_perf, memory_perf$start_perf, lambdas, start_quantile, 5, Inf, 1000, "CPU")
+  # Print the initial average performance
+  initial_average_performance <- average_performance(
+    cpu_perf$start_perf, 
+    gpu_perf$start_perf_2d, 
+    gpu_perf$start_perf_3d, 
+    memory_perf$start_perf, 
+    disk_perf$start_perf, 
+    lambdas, 
+    start_quantile, 
+    5, 
+    Inf, 
+    list(CPU = 1000, GPU_2D = 1000, GPU_3D = 1000, Memory = 1000, Disk = 1000), 
+    chosen_components
+  )
   print(initial_average_performance)
+  
+  # Initialize vectors to store performance values over time
+  times <- seq(0, 10, by = 0.1)
+  performance_single_upgrade <- numeric(length(times))
+  performance_multiple_upgrade <- numeric(length(times))
+  
+  # Iterate over time and calculate performance for single upgrade scenario
+  for (i in seq_along(times)) {
+    t <- times[i]
+    performance_single_upgrade[i] <- average_performance(
+      cpu_perf$start_perf, 
+      gpu_perf$start_perf_2d, 
+      gpu_perf$start_perf_3d, 
+      memory_perf$start_perf, 
+      disk_perf$start_perf, 
+      lambdas, 
+      start_quantile, 
+      t, 
+      broken_time, # assuming t_upgrade is 2.5
+      list(CPU = cpu_perf$upgrade_values[1], GPU_2D = gpu_perf$upgrade_values_2d[1], GPU_3D = gpu_perf$upgrade_values_3d[1], Memory = memory_perf$upgrade_values[1], Disk = disk_perf$upgrade_values[1]), 
+      chosen_components
+    )
+  }
+  
+  # Iterate over time and calculate performance for multiple upgrade scenario
+  for (i in seq_along(times)) {
+    t <- times[i]
+    performance_multiple_upgrade[i] <- average_performance(
+      cpu_perf$start_perf, 
+      gpu_perf$start_perf_2d, 
+      gpu_perf$start_perf_3d, 
+      memory_perf$start_perf, 
+      disk_perf$start_perf, 
+      lambdas, 
+      start_quantile, 
+      t, 
+      broken_time, # assuming t_upgrade is 2.5
+      list(CPU = cpu_perf$upgrade_values[1], GPU_2D = gpu_perf$upgrade_values_2d[1], GPU_3D = gpu_perf$upgrade_values_3d[1], Memory = memory_perf$upgrade_values[1], Disk = disk_perf$upgrade_values[1]), 
+      c("CPU", "GPU", "Memory", "Disk")
+    )
+  }
+  
+  # Create a data frame for plotting
+  performance_data <- data.frame(
+    Time = rep(times, 2),
+    Performance = c(performance_single_upgrade, performance_multiple_upgrade),
+    Scenario = rep(c("Single Upgrade", "Multiple Upgrades"), each = length(times))
+  )
+  
+  # Plot the data
+  ggplot(performance_data, aes(x = Time, y = Performance, color = Scenario)) +
+    geom_line() +
+    labs(title = "Average Performance Over Time",
+         x = "Time",
+         y = "Performance",
+         color = "Scenario")
 }
 ```
 
 ```{r}
-run_optimization(2016, "First Quantile", "CPU")
+run_optimization(2016, "First Quantile", "CPU", 2)
 ```

@@ -1,5 +1,5 @@
 ---
-title: "initial optimization"
+title: "broken optimization"
 output: pdf_document
 date: "2024-02-15"
 ---
@@ -39,7 +39,7 @@ calculate_averages <- function(data) {
 }
 
 gpu_calculate_averages <- function(data) {
-  data %>% 
+  data %>%
     group_by(Quantile, ReleaseYear) %>%
     summarise(
       Avg_Release_Price = mean(AdjustedReleasePrice, na.rm = TRUE),
@@ -58,17 +58,13 @@ gpu_averages$Avg_Score <- paste0(gpu_averages$Avg_G2DScore, ",", gpu_averages$Av
 
 ```{r}
 performance_after_upgrade <- function(t, t_upgrade, perf_initial, lambda, perf_new) {
-  if (t < t_upgrade) {
+  if (t <= t_upgrade) {
     perf <- perf_initial * exp(-lambda * t)
   } else {
     perf <- perf_new * exp(-lambda * (t - t_upgrade))
   }
   return(perf)
 }
-```
-
-```{r}
-performance_after_upgrade(8, 6, 1000, 0.2, 1100)
 ```
 
 ```{r}
@@ -92,38 +88,35 @@ lambdas <- read_lambdas("../statistical_analysis/lambda_values.csv")
 ```
 
 ```{r}
-PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, t, t_upgrade, perf_new, upgraded_component) {
+PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, t, t_upgrade, perf_new, upgraded_components) {
   CPU_lambda <- get_lambda(lambdas, "CPU", quantile)
   TwoD_lambda <- get_lambda(lambdas, "GPU2D", quantile)
   ThreeD_lambda <- get_lambda(lambdas, "GPU3D", quantile)
   Memory_lambda <- get_lambda(lambdas, "Memory", quantile)
   Disk_lambda <- get_lambda(lambdas, "Disk", quantile)
 
-  if (upgraded_component == "CPU") {
-    CPU_Rating <- performance_after_upgrade(t, t_upgrade, CPU_Rating, CPU_lambda, perf_new)
+  if ("CPU" %in% upgraded_components) {
+    CPU_Rating <- performance_after_upgrade(t, t_upgrade, CPU_Rating, CPU_lambda, as.numeric(perf_new$CPU))
   } else {
     CPU_Rating <- CPU_Rating * exp(-CPU_lambda * t)
   }
 
-  if (upgraded_component == "GPU") {
-    gpu_perf_new <- strsplit(as.character(perf_new), split = ",")[[1]]
-    TwoD_perf_new <- as.numeric(gpu_perf_new[1])
-    ThreeD_perf_new <- as.numeric(gpu_perf_new[2])
-    TwoD_Rating <- performance_after_upgrade(t, t_upgrade, TwoD_Rating, TwoD_lambda, TwoD_perf_new)
-    ThreeD_Rating <- performance_after_upgrade(t, t_upgrade, ThreeD_Rating, ThreeD_lambda, ThreeD_perf_new)
+  if ("GPU" %in% upgraded_components) {
+    TwoD_Rating <- performance_after_upgrade(t, t_upgrade, TwoD_Rating, TwoD_lambda, as.numeric(perf_new$GPU_2D))
+    ThreeD_Rating <- performance_after_upgrade(t, t_upgrade, ThreeD_Rating, ThreeD_lambda, as.numeric(perf_new$GPU_3D))
   } else {
     TwoD_Rating <- TwoD_Rating * exp(-TwoD_lambda * t)
     ThreeD_Rating <- ThreeD_Rating * exp(-ThreeD_lambda * t)
   }
 
-  if (upgraded_component == "Memory") {
-    Memory_Rating <- performance_after_upgrade(t, t_upgrade, Memory_Rating, Memory_lambda, perf_new)
+  if ("Memory" %in% upgraded_components) {
+    Memory_Rating <- performance_after_upgrade(t, t_upgrade, Memory_Rating, Memory_lambda, as.numeric(perf_new$Memory))
   } else {
     Memory_Rating <- Memory_Rating * exp(-Memory_lambda * t)
   }
 
-  if (upgraded_component == "Disk") {
-    Disk_Rating <- performance_after_upgrade(t, t_upgrade, Disk_Rating, Disk_lambda, perf_new)
+  if ("Disk" %in% upgraded_components) {
+    Disk_Rating <- performance_after_upgrade(t, t_upgrade, Disk_Rating, Disk_lambda, as.numeric(perf_new$Disk))
   } else {
     Disk_Rating <- Disk_Rating * exp(-Disk_lambda * t)
   }
@@ -145,9 +138,138 @@ PassMark_Rating_with_time_based_lambdas <- function(CPU_Rating, TwoD_Rating, Thr
 ```
 
 ```{r}
-PassMark_Rating_with_time_based_lambdas(1000, 1000, 1000, 1000, 1000, lambdas, "Third Quantile", 3, 3, "1900,1500", "GPU")
+average_performance <- function(CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating, lambdas, quantile, time, t_upgrade, perf_new, upgraded_component) {
+  time <- as.numeric(time)
+  
+  time_points <- seq(0, time, by = 0.1)
+  performances <- sapply(time_points, function(t) {
+    PassMark_Rating_with_time_based_lambdas(
+      CPU_Rating, TwoD_Rating, ThreeD_Rating, Memory_Rating, Disk_Rating,
+      lambdas, quantile, t, t_upgrade, perf_new, upgraded_component
+    )
+  })
+  
+  avg_performance <- mean(performances, na.rm = TRUE)
+  
+  return(avg_performance)
+}
 ```
 
 ```{r}
-optimization_results <- read.csv(file = "optimization_results.csv")
+# Function to get starting performance and upgrade values
+get_performance_and_upgrades <- function(averages_data, start_year, start_quantile) {
+  start_perf <- averages_data %>%
+    filter(ReleaseYear == start_year & Quantile == start_quantile) %>%
+    pull(Avg_Score)
+  
+  upgrade_values <- averages_data %>%
+    filter(ReleaseYear >= start_year & Quantile == start_quantile) %>%
+    pull(Avg_Score)
+  
+  upgrade_values <- upgrade_values[1:5]  # Get the 5 values after the first value
+  
+  return(list(start_perf = start_perf, upgrade_values = upgrade_values))
+}
+
+
+get_performance_and_upgrades_gpu <- function(averages_data, start_year, start_quantile) {
+  start_perf_2d <- averages_data %>%
+    filter(ReleaseYear == start_year & Quantile == start_quantile) %>%
+    pull(Avg_G2DScore)
+  
+  start_perf_3d <- averages_data %>%
+    filter(ReleaseYear == start_year & Quantile == start_quantile) %>%
+    pull(Avg_G3DScore)
+  
+  upgrade_values_2d <- averages_data %>%
+    filter(ReleaseYear >= start_year & Quantile == start_quantile) %>%
+    pull(Avg_G2DScore)
+  
+  upgrade_values_3d <- averages_data %>%
+    filter(ReleaseYear >= start_year & Quantile == start_quantile) %>%
+    pull(Avg_G3DScore)
+  
+  upgrade_values_2d <- upgrade_values_2d[1:5]  # Get the 5 values after the first value
+  upgrade_values_3d <- upgrade_values_3d[1:5]  # Get the 5 values after the first value
+  
+  return(list(
+    start_perf_2d = start_perf_2d,
+    start_perf_3d = start_perf_3d,
+    upgrade_values_2d = upgrade_values_2d,
+    upgrade_values_3d = upgrade_values_3d
+  ))
+}
+```
+
+```{r}
+run_optimization <- function(start_year, start_quantile, chosen_components, broken_time) {
+  # Get starting performance and upgrade values for each component
+  cpu_perf <- get_performance_and_upgrades(cpu_averages, start_year, start_quantile)
+  gpu_perf <- get_performance_and_upgrades_gpu(gpu_averages, start_year, start_quantile)
+  disk_perf <- get_performance_and_upgrades(disk_averages, start_year, start_quantile)
+  memory_perf <- get_performance_and_upgrades(memory_averages, start_year, start_quantile)
+  
+  # Initialize an empty list to store the performance values
+  perf_new_values_list <- list()
+  
+  # Check each component and add its values to the list with the component name as the key
+  if ("CPU" %in% chosen_components) {
+    perf_new_values_list$CPU <- cpu_perf$upgrade_values
+  } 
+  if ("GPU" %in% chosen_components) {
+    perf_new_values_list$GPU_2D <- gpu_perf$upgrade_values_2d
+    perf_new_values_list$GPU_3D <- gpu_perf$upgrade_values_3d
+  }
+  if ("Disk" %in% chosen_components) {
+    perf_new_values_list$Disk <- disk_perf$upgrade_values
+  }
+  if ("Memory" %in% chosen_components) {
+    perf_new_values_list$Memory <- memory_perf$upgrade_values
+  }
+  
+  # Initialize vectors to store performance values over time
+  times <- seq(0, 10, by = 0.1)
+  performance_single_upgrade <- numeric(length(times))
+  performance_multiple_upgrade <- numeric(length(times))
+  
+  # Iterate over time and calculate performance for single upgrade scenario
+  for (i in seq_along(times)) {
+    t <- times[i]
+    performance_single_upgrade[i] <- average_performance(
+      cpu_perf$start_perf, 
+      gpu_perf$start_perf_2d, 
+      gpu_perf$start_perf_3d, 
+      memory_perf$start_perf, 
+      disk_perf$start_perf, 
+      lambdas, 
+      start_quantile, 
+      t, 
+      broken_time, 
+      list(CPU = cpu_perf$upgrade_values[1], GPU_2D = gpu_perf$upgrade_values_2d[1], GPU_3D = gpu_perf$upgrade_values_3d[1], Memory = memory_perf$upgrade_values[1], Disk = disk_perf$upgrade_values[1]), 
+      chosen_components
+    )
+  }
+  
+  # Create a data frame for plotting
+  performance_data <- data.frame(
+    Time = times,
+    Performance = performance_single_upgrade,
+    Scenario = rep("Average Performance", length(times))
+  )
+  
+  # Plot the data
+  library(ggplot2)
+  
+  ggplot(performance_data, aes(x = Time, y = Performance, color = Scenario)) +
+    geom_line() +
+    labs(title = "Average Performance Over Time",
+         x = "Time",
+         y = "Performance",
+         color = "Scenario")
+}
+
+```
+
+```{r}
+run_optimization(2014, "Second Quantile", "CPU", 3.146)
 ```
