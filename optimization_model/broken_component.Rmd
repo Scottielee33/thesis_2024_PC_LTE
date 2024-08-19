@@ -309,3 +309,59 @@ run_optimization <- function(start_year, start_quantile, chosen_components, brok
 ```{r}
 run_optimization(2016, "First Quantile", "CPU", 2)
 ```
+
+```{r}
+cpu_price_average <- 71.7
+gpu_price_average <- 35.38
+disk_price_average <- 14.34
+memory_price_average <- 11.95
+
+initial_cost <- cpu_price_average + gpu_price_average + disk_price_average + memory_price_average
+cpu_upgrade_cost <- cpu_price_average
+system_upgrade_cost <- initial_cost
+
+data_no_upgrade <- data.frame(Year = integer(), Average_Cost = numeric())
+data_cpu_upgrade <- data.frame(Year = integer(), Average_Cost = numeric())
+data_system_upgrade <- data.frame(Year = integer(), Average_Cost = numeric())
+
+# Calculate for no upgrade scenario
+total_cost <- initial_cost
+for (year in 1:10) {
+  avg_cost <- total_cost / year
+  data_no_upgrade <- rbind(data_no_upgrade, data.frame(Year = year, Average_Cost = avg_cost))
+}
+
+# Calculate for CPU upgrade scenario at year 2
+total_cost <- initial_cost
+for (year in 1:10) {
+  if (year == 2) {
+    total_cost <- total_cost + cpu_upgrade_cost
+  }
+  avg_cost <- total_cost / year
+  data_cpu_upgrade <- rbind(data_cpu_upgrade, data.frame(Year = year, Average_Cost = avg_cost))
+}
+
+# Calculate for system upgrade scenario at year 2
+total_cost <- initial_cost
+for (year in 1:10) {
+  if (year == 2) {
+    total_cost <- total_cost + system_upgrade_cost
+  }
+  avg_cost <- total_cost / year
+  data_system_upgrade <- rbind(data_system_upgrade, data.frame(Year = year, Average_Cost = avg_cost))
+}
+
+# Combine all data into one data frame with an additional column for the scenario
+data_no_upgrade$Scenario <- "No Upgrade"
+data_cpu_upgrade$Scenario <- "CPU Upgrade"
+data_system_upgrade$Scenario <- "System Upgrade"
+
+combined_data <- rbind(data_no_upgrade, data_cpu_upgrade, data_system_upgrade)
+
+# Create the plot using ggplot2
+ggplot(combined_data, aes(x = Year, y = Average_Cost, color = Scenario)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Years vs Average Carbon Emission", x = "Year", y = "Average Cost") +
+  theme_minimal()
+```
