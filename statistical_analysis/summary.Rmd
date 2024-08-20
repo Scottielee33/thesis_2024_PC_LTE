@@ -131,11 +131,155 @@ ggplot(combined_data, aes(x = Component, y = Price, fill = Quantile)) +
 
   theme_minimal() +
 
-  labs(title = "Component Launch Prices per Quantile", x = "Component", y = "Price") +
+  labs(title = "Component Release Prices per Quantile", x = "Component", y = "Price") +
 
   scale_fill_brewer(palette = "Set1") +
 
   theme(plot.title = element_text(hjust = 0.5))
 
+```
+
+```{r}
+# CPU Trend
+ggplot(CPU, aes(x=ReleaseDate, y=AdjustedReleasePrice)) + 
+  geom_line(color="blue") +
+  geom_point(color="red") +
+  labs(title="CPU Release Prices Over Time", x="Release Date", y="Price") +
+  theme_minimal()
+
+# GPU Trend
+ggplot(GPU, aes(x=ReleaseDate, y=AdjustedReleasePrice)) + 
+  geom_line(color="blue") +
+  geom_point(color="red") +
+  labs(title="GPU Release Prices Over Time", x="Release Date", y="Price") +
+  theme_minimal()
+
+# Disk Trend
+ggplot(Disk, aes(x=ReleaseDate, y=AdjustedReleasePrice)) + 
+  geom_line(color="blue") +
+  geom_point(color="red") +
+  labs(title="Disk Release Prices Over Time", x="Release Date", y="Price") +
+  theme_minimal()
+
+# Memory Trend
+ggplot(Memory, aes(x=ReleaseDate, y=AdjustedReleasePrice)) + 
+  geom_line(color="blue") +
+  geom_point(color="red") +
+  labs(title="Memory Release Prices Over Time", x="Release Date", y="Price") +
+  theme_minimal()
+```
+
+```{r}
+# Add a Year column
+CPU$Year <- format(CPU$ReleaseDate, "%Y")
+GPU$Year <- format(GPU$ReleaseDate, "%Y")
+Disk$Year <- format(Disk$ReleaseDate, "%Y")
+Memory$Year <- format(Memory$ReleaseDate, "%Y")
+
+# Calculate average price per year per quantile
+cpu_yearly <- CPU %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(ReleasePrice, na.rm = TRUE))
+
+gpu_yearly <- GPU %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(ReleasePrice, na.rm = TRUE))
+
+disk_yearly <- Disk %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(ReleasePrice, na.rm = TRUE))
+
+memory_yearly <- Memory %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(ReleasePrice, na.rm = TRUE))
+
+# Plotting CPU Trend
+ggplot(cpu_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="CPU Average Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting GPU Trend
+ggplot(gpu_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="GPU Average Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting Disk Trend
+ggplot(disk_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="Disk Average Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting Memory Trend
+ggplot(memory_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="Memory Average Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+```
+
+```{r}
+# Add a Year column
+CPU$Year <- format(CPU$ReleaseDate, "%Y")
+GPU$Year <- format(GPU$ReleaseDate, "%Y")
+Disk$Year <- format(Disk$ReleaseDate, "%Y")
+Memory$Year <- format(Memory$ReleaseDate, "%Y")
+
+# Calculate average price per year per quantile
+cpu_yearly <- CPU %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(AdjustedReleasePrice, na.rm = TRUE))
+
+gpu_yearly <- GPU %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(AdjustedReleasePrice, na.rm = TRUE))
+
+disk_yearly <- Disk %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(AdjustedReleasePrice, na.rm = TRUE))
+
+memory_yearly <- Memory %>%
+  group_by(Year, Quantile) %>%
+  summarize(AvgPrice = mean(AdjustedReleasePrice, na.rm = TRUE))
+
+# Plotting CPU Trend
+ggplot(cpu_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="CPU Average Adjusted Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting GPU Trend
+ggplot(gpu_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="GPU Average Adjusted Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting Disk Trend
+ggplot(disk_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="Disk Average Adjusted Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+# Plotting Memory Trend
+ggplot(memory_yearly, aes(x=Year, y=AvgPrice, color=Quantile, group=Quantile)) + 
+  geom_line() +
+  geom_point() +
+  labs(title="Memory Average Adjusted Release Prices Over Time per Quantile", x="Year", y="Average Price") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
 ```
 
